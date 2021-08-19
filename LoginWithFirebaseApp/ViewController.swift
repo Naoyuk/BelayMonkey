@@ -7,6 +7,7 @@
 
 import UIKit
 import Firebase
+import PKHUD
 
 struct User {
     
@@ -31,13 +32,22 @@ class ViewController: UIViewController {
         handleAuthToFirebase()
     }
     
+    @IBAction func tappedMoveToLogin(_ sender: Any) {
+        let storyBoard = UIStoryboard(name: "Login", bundle: nil)
+        let homeViewController = storyBoard.instantiateViewController(identifier: "LoginViewController") as! LoginViewController
+        navigationController?.pushViewController(homeViewController, animated: true)
+    }
     private func handleAuthToFirebase() {
+        HUD.show(.progress, onView: view)
         guard let email = emailTextField.text else { return }
         guard let password = passwordTextFields.text else { return }
         
         Auth.auth().createUser(withEmail: email, password: password) { (res, err) in
             if let err = err {
                 print("認証情報の保存に失敗しました。\(err)")
+                HUD.hide { (_) in
+                    HUD.flash(.error, delay: 1)
+                }
                 return
             }
             
@@ -56,27 +66,43 @@ class ViewController: UIViewController {
         userRef.setData(docData) { (err) in
             if let err = err {
                 print("Firestoreへの保存に失敗しました。\(err)")
+                HUD.hide { (_) in
+                    HUD.flash(.error, delay: 1)
+                }
                 return
             }
             
             userRef.getDocument { (snapshot, err) in
                 if let err = err {
                     print("ユーザー情報の取得に失敗しました。\(err)")
+                    HUD.hide { (_) in
+                        HUD.flash(.error, delay: 1)
+                    }
                     return
                 }
                 
                 guard let data = snapshot?.data() else { return }
                 let user = User.init(dic: data)
                 print("ユーザー情報の取得に成功しました。\(user.name)")
+                HUD.hide { (_) in
+                    HUD.flash(.success, onView: self.view, delay: 1) { (_) in
+                        self.presentToHomeViewConrtoller(user: user)
+                    }
+                }
                 
-                let storyBoard = UIStoryboard(name: "Home", bundle: nil)
-                let homeViewController = storyBoard.instantiateViewController(identifier: "HomeViewController") as! HomeViewController
-                homeViewController.user = user
-                self.present(homeViewController, animated: true, completion: nil)
+
             }
             
         }
         
+    }
+    
+    private func presentToHomeViewConrtoller(user: User) {
+        let storyBoard = UIStoryboard(name: "Home", bundle: nil)
+        let homeViewController = storyBoard.instantiateViewController(identifier: "HomeViewController") as! HomeViewController
+        homeViewController.user = user
+        homeViewController.modalPresentationStyle = .fullScreen
+        self.present(homeViewController, animated: true, completion: nil)
     }
     
     override func viewDidLoad() {
@@ -92,6 +118,12 @@ class ViewController: UIViewController {
         
         NotificationCenter.default.addObserver(self, selector: #selector(showKeyboard), name: UIResponder.keyboardWillShowNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(hideKeyboard), name: UIResponder.keyboardWillHideNotification, object: nil)
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        
+        navigationController?.navigationBar.isHidden = true
     }
     
     @objc func showKeyboard(notification: Notification) {
